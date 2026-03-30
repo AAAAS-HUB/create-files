@@ -1,13 +1,13 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from pydantic import BaseModel
 import requests
 
-# 必须暴露 app 变量，Vercel 才能识别！
+# Vercel 强制要求：必须暴露 app 对象
 app = FastAPI()
 
-# 填入你自己的豆包 API Key
-DOUBAO_API_KEY = "你的豆包API_KEY"
-DOUBAO_API_URL = "992f03a7-b58f-4850-8c86-c485b04e3ccd"
+# 你的豆包 API Key
+API_KEY = "你的豆包API_KEY"
+API_URL = "992f03a7-b58f-4850-8c86-c485b04e3ccd"
 
 class Item(BaseModel):
     type: str
@@ -24,7 +24,7 @@ async def generate(item: Item):
     """.strip()
 
     headers = {
-        "Authorization": f"Bearer {DOUBAO_API_KEY}",
+        "Authorization": f"Bearer {API_KEY}",
         "Content-Type": "application/json"
     }
     payload = {
@@ -34,9 +34,9 @@ async def generate(item: Item):
     }
 
     try:
-        resp = requests.post(DOUBAO_API_URL, json=payload, timeout=50)
+        resp = requests.post(API_URL, json=payload, timeout=50)
         data = resp.json()
         text = data["choices"][0]["message"]["content"].strip()
         return {"result": text}
     except Exception as e:
-        return {"result": f"错误：{str(e)}"}
+        return {"result": f"服务异常：{str(e)}"}
