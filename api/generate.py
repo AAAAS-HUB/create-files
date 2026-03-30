@@ -1,12 +1,13 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from pydantic import BaseModel
 import requests
 
+# 必须暴露 app 变量，Vercel 才能识别！
 app = FastAPI()
 
-# 在这里填入你自己的豆包 API Key 和 endpoint
-API_KEY = "你的豆包API_KEY"
-API_URL = "992f03a7-b58f-4850-8c86-c485b04e3ccd"
+# 填入你自己的豆包 API Key
+DOUBAO_API_KEY = "你的豆包API_KEY"
+DOUBAO_API_URL = "992f03a7-b58f-4850-8c86-c485b04e3ccd"
 
 class Item(BaseModel):
     type: str
@@ -15,7 +16,7 @@ class Item(BaseModel):
     content: str
 
 @app.post("/api/generate")
-async def gen(item: Item):
+async def generate(item: Item):
     prompt = f"""
 你是专业职场文书助手，只输出正文，不解释、不寒暄、不加多余内容。
 请生成一篇【{item.type}】，风格{item.style}，字数{item.len}字。
@@ -23,7 +24,7 @@ async def gen(item: Item):
     """.strip()
 
     headers = {
-        "Authorization": f"Bearer {API_KEY}",
+        "Authorization": f"Bearer {DOUBAO_API_KEY}",
         "Content-Type": "application/json"
     }
     payload = {
@@ -32,8 +33,10 @@ async def gen(item: Item):
         "temperature": 0.3
     }
 
-    resp = requests.post(API_URL, json=payload, timeout=50)
-    result = resp.json()
-    text = result["choices"][0]["message"]["content"].strip()
-
-    return {"result": text}
+    try:
+        resp = requests.post(DOUBAO_API_URL, json=payload, timeout=50)
+        data = resp.json()
+        text = data["choices"][0]["message"]["content"].strip()
+        return {"result": text}
+    except Exception as e:
+        return {"result": f"错误：{str(e)}"}
