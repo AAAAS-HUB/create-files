@@ -2,3 +2,4 @@ fastapi
 uvicorn
 requests
 python-multipart
+python-docx  # 新增：生成Word文档

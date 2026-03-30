@@ -20,6 +20,8 @@ button:disabled{background:#94c2ff}
 .result{background:#f7f8fa;padding:18px;border-radius:12px;white-space:pre-wrap;line-height:1.7;margin-top:20px;font-size:15px}
 .tip{font-size:12px;color:#86909c;text-align:center;margin-top:10px}
 .btn-group{display:flex;align-items:center;margin-top:8px}
+.download-btn{margin-top:12px;background:#00cc66}
+.download-btn:disabled{background:#99e6b3}
 </style>
 </head>
 <body>
@@ -76,12 +78,16 @@ button:disabled{background:#94c2ff}
       </div>
     </div>
     <button onclick="gen()" id="btn">一键生成</button>
+    <!-- 新增下载按钮 -->
+    <button class="download-btn" id="downloadBtn" onclick="downloadDoc()" disabled style="display:none">下载Word文档</button>
     <div class="tip">免费使用，每日有限次数</div>
   </div>
   <div id="result" style="display:none" class="result"></div>
 </div>
 
 <script>
+let currentDocId = ""; // 存储当前生成的文档ID
+
 // 填充参考样例
 async function fillExample(){
   const type = document.getElementById('type').value;
@@ -100,6 +106,7 @@ async function fillExample(){
 // 生成文书
 async function gen(){
   const btn = document.getElementById('btn')
+  const downloadBtn = document.getElementById('downloadBtn')
   const res = document.getElementById('result')
   const type = document.getElementById('type').value
   const style = document.getElementById('style').value
@@ -108,6 +115,8 @@ async function gen(){
 
   if(!content){alert('请填写内容');return}
   btn.disabled = true
+  downloadBtn.disabled = true
+  downloadBtn.style.display = 'none'
   btn.textContent = '生成中...'
   res.style.display = 'block'
   res.textContent = '正在生成，请稍候...'
@@ -120,12 +129,29 @@ async function gen(){
     })
     const data = await r.json()
     res.textContent = data.result || '生成失败'
+    
+    // 如果生成成功且有文档ID，显示下载按钮
+    if(data.doc_id && !data.result.startsWith('❌')){
+      currentDocId = data.doc_id;
+      downloadBtn.disabled = false;
+      downloadBtn.style.display = 'inline-block';
+    }
   }catch(e){
     res.textContent = '请求错误'
   }finally{
     btn.disabled = false
     btn.textContent = '一键生成'
   }
+}
+
+// 下载Word文档
+function downloadDoc(){
+  if(!currentDocId){
+    alert('暂无可下载的文档');
+    return;
+  }
+  // 打开下载链接
+  window.open(`/api/download/${currentDocId}`, '_blank');
 }
 </script>
 </body>
