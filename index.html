@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI职场文书助手</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto}
+body{background:#f5f7fa;padding:20px}
+.container{max-width:700px;margin:0 auto}
+.card{background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,0.06);margin-bottom:20px}
+h1{font-size:22px;margin-bottom:20px;text-align:center;color:#1d2129}
+.item{margin-bottom:16px}
+label{display:block;margin-bottom:8px;font-size:14px;color:#4e5969}
+select,textarea{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #e5e6eb;font-size:15px}
+textarea{min-height:110px;resize:vertical}
+button{width:100%;padding:14px;background:#0066ff;color:white;border:none;border-radius:12px;font-size:16px;font-weight:500;cursor:pointer}
+button:disabled{background:#94c2ff}
+.result{background:#f7f8fa;padding:18px;border-radius:12px;white-space:pre-wrap;line-height:1.7;margin-top:20px;font-size:15px}
+.tip{font-size:12px;color:#86909c;text-align:center;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="card">
+    <h1>AI职场文书助手</h1>
+    <div class="item">
+      <label>文书类型</label>
+      <select id="type">
+        <option value="工作总结">工作总结</option>
+        <option value="工作计划">工作计划</option>
+        <option value="转正申请">转正申请</option>
+        <option value="离职申请">离职申请</option>
+        <option value="请假条">请假条</option>
+        <option value="通知公告">通知公告</option>
+        <option value="会议纪要">会议纪要</option>
+        <option value="致歉信">致歉信/情况说明</option>
+        <option value="检讨书">检讨书</option>
+        <option value="感谢信">感谢信</option>
+      </select>
+    </div>
+    <div class="item">
+      <label>风格</label>
+      <select id="style">
+        <option value="正式">正式</option>
+        <option value="简洁">简洁</option>
+        <option value="诚恳">诚恳</option>
+      </select>
+    </div>
+    <div class="item">
+      <label>字数</label>
+      <select id="len">
+        <option value="200">200字</option>
+        <option value="500" selected>500字</option>
+        <option value="800">800字</option>
+        <option value="1000">1000字</option>
+      </select>
+    </div>
+    <div class="item">
+      <label>背景信息</label>
+      <textarea id="content" placeholder="例如：3月工作总结，负责社群运营与活动执行..."></textarea>
+    </div>
+    <button onclick="gen()" id="btn">一键生成</button>
+    <div class="tip">免费使用，每日有限次数</div>
+  </div>
+  <div id="result" style="display:none" class="result"></div>
+</div>
+
+<script>
+async function gen(){
+  const btn = document.getElementById('btn')
+  const res = document.getElementById('result')
+  const type = document.getElementById('type').value
+  const style = document.getElementById('style').value
+  const len = document.getElementById('len').value
+  const content = document.getElementById('content').value.trim()
+
+  if(!content){alert('请填写内容');return}
+  btn.disabled = true
+  btn.textContent = '生成中...'
+  res.style.display = 'block'
+  res.textContent = '正在生成，请稍候...'
+
+  try{
+    const r = await fetch('/api/generate',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({type,style,len,content})
+    })
+    const data = await r.json()
+    res.textContent = data.result || '生成失败'
+  }catch(e){
+    res.textContent = '请求错误'
+  }finally{
+    btn.disabled = false
+    btn.textContent = '一键生成'
+  }
+}
+</script>
+</body>
+</html>
