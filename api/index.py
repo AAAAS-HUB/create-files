@@ -1,12 +1,24 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 import requests
+from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-# 填入你的豆包 API Key
-API_KEY = "你的豆包API_KEY"
-API_URL = "992f03a7-b58f-4850-8c86-c485b04e3ccd"
+# 解决跨域
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ====================== 在这里填入你的豆包 API Key ======================
+API_KEY = "992f03a7-b58f-4850-8c86-c485b04e3ccd"
+API_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
+# =======================================================================
 
 class Item(BaseModel):
     type: str
@@ -14,6 +26,7 @@ class Item(BaseModel):
     len: str
     content: str
 
+# 生成文书接口
 @app.post("/api/generate")
 async def generate(item: Item):
     prompt = f"""
@@ -38,4 +51,9 @@ async def generate(item: Item):
         text = data["choices"][0]["message"]["content"].strip()
         return {"result": text}
     except Exception as e:
-        return {"result": f"错误：{str(e)}"}
+        return {"result": f"服务错误：{str(e)}"}
+
+# 首页 → 直接返回网页（解决 Not Found 报错！）
+@app.get("/")
+async def root():
+    return FileResponse("../index.html")
