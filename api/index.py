@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 import requests
+import json
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -15,8 +16,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ====================== 必须替换成你的豆包 API Key ======================
-API_KEY = "992f03a7-b58f-4850-8c86-c485b04e3ccd"  # 重点：改这里！
+# 加载 Prompt 模板
+with open("prompt_templates.json", "r", encoding="utf-8") as f:
+    prompt_config = json.load(f)
+templates = prompt_config["templates"]
+
+# ====================== 替换成你的豆包 API Key ======================
+API_KEY = "992f03a7-b58f-4850-8c86-c485b04e3ccd"
 API_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
 # =======================================================================
 
@@ -29,11 +35,23 @@ class Item(BaseModel):
 # 生成文书接口
 @app.post("/api/generate")
 async def generate(item: Item):
-    prompt = f"""
-你是专业职场文书助手，只输出正文，不解释、不寒暄、不加多余内容。
-请生成一篇【{item.type}】，风格{item.style}，字数{item.len}字。
-背景信息：{item.content}
-    """.strip()
+    # 获取对应场景的模板
+    if item.type not in templates:
+        return {"result": "暂不支持该文书类型"}
+    
+    # 替换模板变量（处理述职报告等固定风格的场景）
+    template = templates[item.type]["prompt"]
+    # 述职报告强制正式风格
+    if item.type == "述职报告":
+        style = "正式"
+    else:
+        style = item.style
+    
+    prompt = template.format(
+        style=style,
+        wordCount=item.len,
+        content=item.content
+    )
 
     headers = {
         "Authorization": f"Bearer {API_KEY}",
@@ -53,7 +71,14 @@ async def generate(item: Item):
     except Exception as e:
         return {"result": f"服务错误：{str(e)}"}
 
-# 首页 → 直接返回网页（修正路径！）
+# 新增接口：获取各场景的参考样例（给前端展示）
+@app.get("/api/examples/{doc_type}")
+async def get_example(doc_type: str):
+    if doc_type not in templates:
+        return {"example": ""}
+    return {"example": templates[doc_type]["example"]}
+
+# 首页 → 返回网页
 @app.get("/")
 async def root():
-    return FileResponse("index.html")  # 关键：去掉 ../
+    return FileResponse("index.html")
