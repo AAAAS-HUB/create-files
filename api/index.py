@@ -15,8 +15,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ====================== 在这里填入你的豆包 API Key ======================
-API_KEY = "992f03a7-b58f-4850-8c86-c485b04e3ccd"
+# ====================== 必须替换成你的豆包 API Key ======================
+API_KEY = "992f03a7-b58f-4850-8c86-c485b04e3ccd"  # 重点：改这里！
 API_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
 # =======================================================================
 
@@ -53,7 +53,7 @@ async def generate(item: Item):
     except Exception as e:
         return {"result": f"服务错误：{str(e)}"}
 
-# 首页 → 直接返回网页（解决 Not Found 报错！）
+# 首页 → 直接返回网页（修正路径！）
 @app.get("/")
 async def root():
-    return FileResponse("../index.html")
+    return FileResponse("index.html")  # 关键：去掉 ../
