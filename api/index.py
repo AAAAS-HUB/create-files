@@ -102,7 +102,7 @@ async def generate(item: Item):
     except Exception as e:
         return {"result": f"❌ 系统异常：{str(e)}", "doc_id": ""}
 
-# 新增：生成Word文档并下载的接口
+# 新增：生成Word文档并下载的接口（极简稳定版）
 @app.get("/api/download/{doc_id}")
 async def download_doc(doc_id: str):
     # 校验文档ID是否存在
@@ -114,41 +114,33 @@ async def download_doc(doc_id: str):
     title = doc_data["title"]
     content = doc_data["content"]
 
-    # 1. 创建Word文档
-    doc = Document()
-    
-    # 2. 设置文档标题
-    heading = doc.add_heading(title, level=1)
-    heading.alignment = 1  # 标题居中
-    # 设置标题字体
-    for run in heading.runs:
-        run.font.name = "微软雅黑"
-        run.font.size = Pt(16)
-        run._element.rPr.rFonts.set(qn('w:eastAsia'), '微软雅黑')
-    
-    # 3. 添加正文内容
-    paragraph = doc.add_paragraph()
-    paragraph.paragraph_format.line_spacing = 1.5  # 行间距1.5倍
-    run = paragraph.add_run(content)
-    # 设置正文字体
-    run.font.name = "宋体"
-    run.font.size = Pt(12)
-    run._element.rPr.rFonts.set(qn('w:eastAsia'), '宋体')
+    try:
+        # 1. 创建Word文档（移除复杂字体设置，避免报错）
+        doc = Document()
+        
+        # 2. 添加标题（仅基础样式，不设置中文字体）
+        doc.add_heading(title, level=1)
+        
+        # 3. 添加正文内容（基础样式）
+        doc.add_paragraph(content)
 
-    # 4. 保存到内存流（避免写入服务器磁盘）
-    doc_stream = io.BytesIO()
-    doc.save(doc_stream)
-    doc_stream.seek(0)  # 重置流指针
+        # 4. 保存到内存流
+        doc_stream = io.BytesIO()
+        doc.save(doc_stream)
+        doc_stream.seek(0)  # 重置流指针
 
-    # 5. 返回下载响应
-    return StreamingResponse(
-        doc_stream,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={
-            "Content-Disposition": f"attachment; filename={title}.docx"
-        }
-    )
-
+        # 5. 返回下载响应
+        return StreamingResponse(
+            doc_stream,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={
+                "Content-Disposition": f"attachment; filename={title}.docx".encode("utf-8").decode("latin-1")
+            }
+        )
+    except Exception as e:
+        # 捕获所有异常，返回具体错误信息
+        return Response(content=f"文档生成失败：{str(e)}", status_code=500)
+        
 # 获取场景参考样例
 @app.get("/api/examples/{doc_type}")
 async def get_example(doc_type: str):
