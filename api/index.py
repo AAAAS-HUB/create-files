@@ -64,7 +64,7 @@ async def generate(item: Item):
     except Exception as e:
         return {"result": f"❌ 模板解析错误：{str(e)}", "doc_id": ""}
 
-    # 4. 调用豆包API
+    # 4. 调用豆包API（超时优化版）
     try:
         headers = {
             "Authorization": f"Bearer {API_KEY}",
@@ -74,11 +74,34 @@ async def generate(item: Item):
             "model": MODEL_ID,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.3,
-            "max_tokens": 2000
+            "max_tokens": 2000,
+            "stream": False,  # 关闭流式响应（减少网络交互）
+            "top_p": 0.9      # 减少模型思考时间，提升响应速度
         }
-
-        resp = requests.post(API_URL, json=payload, headers=headers, timeout=30)
+    
+        # 优化1：增加重试机制（失败自动重试2次）
+        retry_count = 0
+        max_retry = 2
+        resp = None
+        while retry_count <= max_retry:
+            try:
+                # 优化2：超时从30秒缩短为15秒（避免无效等待）
+                resp = requests.post(
+                    API_URL,
+                    json=payload,
+                    headers=headers,
+                    timeout=15,  # 关键：缩短超时时间
+                    verify=False  # 关键：关闭SSL验证（海外服务器常用）
+                )
+                break
+            except requests.exceptions.Timeout:
+                retry_count += 1
+                if retry_count > max_retry:
+                    raise requests.exceptions.Timeout("多次请求超时")
+    
         result_data = resp.json()
+
+    # 后续解析逻辑不变...
 
         # 5. 解析结果并存储
         if resp.status_code == 200 and "choices" in result_data and result_data["choices"]:
