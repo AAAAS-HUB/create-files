@@ -5,26 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI文案助手 - 职场+社交媒体</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif}
-body{background:#f5f7fa;padding:20px;line-height:1.6}
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto}
+body{background:#f5f7fa;padding:20px}
 .container{max-width:700px;margin:0 auto}
 .card{background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,0.06);margin-bottom:20px}
-h1{font-size:22px;margin-bottom:20px;text-align:center;color:#1d2129;font-weight:600}
+h1{font-size:22px;margin-bottom:20px;text-align:center;color:#1d2129}
 .item{margin-bottom:16px}
-label{display:block;margin-bottom:8px;font-size:14px;color:#4e5969;font-weight:500}
-select,textarea{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #e5e6eb;font-size:15px;transition:border-color 0.2s}
-select:focus,textarea:focus{outline:none;border-color:#0066ff;box-shadow:0 0 0 2px rgba(0,102,255,0.1)}
-textarea{min-height:110px;resize:vertical;line-height:1.5}
-button{padding:12px 16px;background:#0066ff;color:white;border:none;border-radius:10px;font-size:15px;font-weight:500;cursor:pointer;margin-right:8px;transition:background 0.2s}
-button:hover:not(:disabled){background:#0052cc}
+label{display:block;margin-bottom:8px;font-size:14px;color:#4e5969}
+select,textarea{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #e5e6eb;font-size:15px}
+textarea{min-height:110px;resize:vertical}
+button{padding:12px 16px;background:#0066ff;color:white;border:none;border-radius:10px;font-size:15px;font-weight:500;cursor:pointer;margin-right:8px}
 button:disabled{background:#94c2ff;cursor:not-allowed}
 .btn-small{padding:8px 12px;font-size:13px;background:#f0f2f5;color:#4e5969}
-.btn-small:hover{background:#e5e6eb}
-.result{background:#f7f8fa;padding:18px;border-radius:12px;white-space:pre-wrap;line-height:1.7;margin-top:20px;font-size:15px;color:#1d2129;min-height:80px}
-.tip{font-size:12px;color:#86909c;text-align:center;margin-top:10px;line-height:1.4}
+.result{background:#f7f8fa;padding:18px;border-radius:12px;white-space:pre-wrap;line-height:1.7;margin-top:20px;font-size:15px}
+.result.error{color:#f53f3f;background:#fff1f0;border:1px solid #ffccc7}
+.tip{font-size:12px;color:#86909c;text-align:center;margin-top:10px}
 .btn-group{display:flex;align-items:center;margin-top:8px}
 .download-btn{margin-top:12px;background:#00cc66}
-.download-btn:hover:not(:disabled){background:#00b359}
 .download-btn:disabled{background:#99e6b3;cursor:not-allowed}
 .loading {
   display: inline-block;
@@ -37,12 +34,7 @@ button:disabled{background:#94c2ff;cursor:not-allowed}
   margin-right: 8px;
   vertical-align: middle;
 }
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-.error-text {
-  color: #f53f3f;
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -52,7 +44,6 @@ button:disabled{background:#94c2ff;cursor:not-allowed}
     <div class="item">
       <label>文案类型</label>
       <select id="type">
-        <!-- 职场文书 -->
         <option value="工作总结">工作总结</option>
         <option value="工作计划">工作计划</option>
         <option value="转正申请">转正申请</option>
@@ -73,7 +64,6 @@ button:disabled{background:#94c2ff;cursor:not-allowed}
         <option value="推荐信">推荐信</option>
         <option value="入职自我介绍">入职自我介绍</option>
         <option value="简报/汇报材料">简报/汇报材料</option>
-        <!-- 新增社交媒体文案 -->
         <option value="小红书文案">小红书文案</option>
         <option value="朋友圈文案">朋友圈文案</option>
         <option value="知乎文案">知乎文案</option>
@@ -109,15 +99,16 @@ button:disabled{background:#94c2ff;cursor:not-allowed}
     </div>
     <button onclick="gen()" id="btn">一键生成</button>
     <button class="download-btn" id="downloadBtn" onclick="downloadDoc()" disabled style="display:none">下载文档</button>
-    <div class="tip">免费使用，每日有限次数 | 生成结果仅供参考，请根据实际情况调整</div>
+    <div class="tip">免费使用，每日有限次数 | 如遇错误请检查网络或稍后重试</div>
   </div>
   <div id="result" style="display:none" class="result"></div>
 </div>
 
 <script>
 let currentDocId = "";
-let retryCount = 0; // 重试计数器，防止无限重试
-const MAX_RETRY = 2; // 最大重试次数
+let isGenerating = false; // 防止重复点击
+const MAX_RETRY = 1; // 仅重试1次，避免无限循环
+let retryCount = 0;
 
 // 填充参考样例
 async function fillExample(){
@@ -128,116 +119,114 @@ async function fillExample(){
   contentEl.placeholder = "加载样例中...";
   
   try{
-    // 增加请求超时处理
+    // 5秒超时控制
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超时
+    setTimeout(() => controller.abort(), 5000);
     
     const res = await fetch(`/api/examples/${encodeURIComponent(type)}`, {
       signal: controller.signal
     });
     
-    clearTimeout(timeoutId);
-    
-    if(!res.ok){
-      throw new Error(`请求失败：${res.status}`);
-    }
-    
+    if(!res.ok) throw new Error(`样例接口错误: ${res.status}`);
     const data = await res.json();
     contentEl.value = data.example || "暂无参考样例";
   }catch(e){
-    console.error("样例加载失败：", e);
+    console.error("样例加载失败:", e);
     contentEl.placeholder = originalPlaceholder;
-    alert(`样例加载失败：${e.message || '网络异常'}`);
+    contentEl.value = "";
+    alert("参考样例加载失败，请手动输入背景信息");
   }
 }
 
 // 生成文案
 async function gen(){
-  const btn = document.getElementById('btn')
-  const downloadBtn = document.getElementById('downloadBtn')
-  const resEl = document.getElementById('result')
-  const type = document.getElementById('type').value
-  const style = document.getElementById('style').value
-  const len = document.getElementById('len').value
-  const content = document.getElementById('content').value.trim()
-
-  // 重置重试计数器
-  retryCount = 0;
+  // 防止重复点击
+  if(isGenerating) return;
   
+  const btn = document.getElementById('btn');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const resEl = document.getElementById('result');
+  const type = document.getElementById('type').value;
+  const style = document.getElementById('style').value;
+  const len = document.getElementById('len').value;
+  const content = document.getElementById('content').value.trim();
+
   if(!content){
     alert('请填写背景信息，以便生成更贴合需求的文案');
     return;
   }
-  
-  // 按钮状态更新
+
+  // 初始化状态
+  isGenerating = true;
+  retryCount = 0;
   btn.disabled = true;
   downloadBtn.disabled = true;
   downloadBtn.style.display = 'none';
   btn.innerHTML = '<span class="loading"></span>生成中...';
   resEl.style.display = 'block';
+  resEl.className = 'result'; // 重置错误样式
   resEl.textContent = '正在生成，请稍候...';
-  resEl.classList.remove('error-text');
 
-  try{
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
-    
-    const r = await fetch('/api/generate',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      signal: controller.signal,
-      body:JSON.stringify({type,style,len,content})
-    });
-    
-    clearTimeout(timeoutId);
-    
-    if(!r.ok){
-      throw new Error(`服务器错误：${r.status} ${r.statusText}`);
-    }
-    
-    const data = await r.json();
-    
-    if(data.result){
-      resEl.textContent = data.result;
-      // 标记错误文本
-      if(data.result.startsWith('❌')){
-        resEl.classList.add('error-text');
+  // 核心请求逻辑（抽离为函数，方便重试）
+  async function requestGenerate() {
+    try{
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 8000); // 8秒超时
+      
+      const r = await fetch('/api/generate',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        signal: controller.signal,
+        body:JSON.stringify({type,style,len,content})
+      });
+
+      // 处理HTTP错误（非200状态码）
+      if(!r.ok) throw new Error(`服务器错误 [${r.status}]：${r.statusText}`);
+      
+      const data = await r.json();
+      resEl.textContent = data.result || '生成失败：未返回有效内容';
+      
+      // 标记后端返回的错误
+      if(data.result && data.result.startsWith('❌')){
+        resEl.className = 'result error';
       }
-    }else{
-      resEl.textContent = '生成失败：未返回有效内容';
-      resEl.classList.add('error-text');
-    }
-    
-    // 处理下载按钮
-    if(data.doc_id && !data.result.startsWith('❌')){
-      currentDocId = data.doc_id;
-      downloadBtn.disabled = false;
-      downloadBtn.style.display = 'inline-block';
-    }
-    
-  }catch(e){
-    console.error("生成请求失败：", e);
-    retryCount++;
-    
-    if(retryCount <= MAX_RETRY){
-      resEl.textContent = `请求错误（${retryCount}/${MAX_RETRY}），正在重试...`;
-      resEl.classList.add('error-text');
-      // 延迟重试
-      setTimeout(() => gen(), 1000 * retryCount); // 重试间隔递增
-    }else{
-      resEl.textContent = `生成失败：${e.message || '网络异常或服务器错误'}\n请稍后重试`;
-      resEl.classList.add('error-text');
-      // 重置按钮状态
-      btn.disabled = false;
-      btn.innerHTML = '一键生成';
-    }
-  }finally{
-    // 只有当重试次数用尽时才恢复按钮（避免重试时按钮被重置）
-    if(retryCount >= MAX_RETRY){
-      btn.disabled = false;
-      btn.innerHTML = '一键生成';
+      
+      // 处理下载按钮
+      if(data.doc_id && !data.result.startsWith('❌')){
+        currentDocId = data.doc_id;
+        downloadBtn.disabled = false;
+        downloadBtn.style.display = 'inline-block';
+      }
+      
+      return true; // 请求成功
+    }catch(e){
+      retryCount++;
+      console.error("生成请求失败:", e);
+      
+      // 重试逻辑（仅1次）
+      if(retryCount <= MAX_RETRY){
+        resEl.textContent = `请求失败（${retryCount}/${MAX_RETRY}），正在重试...`;
+        resEl.className = 'result error';
+        setTimeout(() => requestGenerate(), 1500); // 1.5秒后重试
+        return false;
+      }else{
+        // 最终失败提示
+        resEl.textContent = `生成失败：${e.message || '服务器内部错误'}\n请检查后端API或稍后重试`;
+        resEl.className = 'result error';
+        return false;
+      }
+    }finally{
+      // 恢复按钮状态（仅当重试完成/无重试时）
+      if(retryCount >= MAX_RETRY){
+        btn.disabled = false;
+        btn.innerHTML = '一键生成';
+        isGenerating = false;
+      }
     }
   }
+
+  // 执行请求
+  await requestGenerate();
 }
 
 // 下载文档
@@ -246,32 +235,15 @@ function downloadDoc(){
     alert('暂无可下载的文档');
     return;
   }
-  
-  // 增加下载前的提示
+  // 增加下载错误提示
   const link = document.createElement('a');
   link.href = `/api/download/${currentDocId}`;
   link.target = '_blank';
-  
-  // 监听下载错误
-  link.addEventListener('error', (e) => {
-    alert('下载失败，请检查网络或稍后重试');
-    console.error("下载失败：", e);
-  });
-  
+  link.addEventListener('error', () => alert('下载失败：服务器无响应，请稍后重试'));
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 }
-
-// 页面加载完成后的初始化
-document.addEventListener('DOMContentLoaded', () => {
-  // 监听回车键触发生成
-  document.getElementById('content').addEventListener('keydown', (e) => {
-    if(e.key === 'Enter' && e.ctrlKey){ // Ctrl+Enter 快速生成
-      gen();
-    }
-  });
-});
 </script>
 </body>
 </html>
