@@ -5,23 +5,44 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI文案助手 - 职场+社交媒体</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto}
-body{background:#f5f7fa;padding:20px}
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif}
+body{background:#f5f7fa;padding:20px;line-height:1.6}
 .container{max-width:700px;margin:0 auto}
 .card{background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,0.06);margin-bottom:20px}
-h1{font-size:22px;margin-bottom:20px;text-align:center;color:#1d2129}
+h1{font-size:22px;margin-bottom:20px;text-align:center;color:#1d2129;font-weight:600}
 .item{margin-bottom:16px}
-label{display:block;margin-bottom:8px;font-size:14px;color:#4e5969}
-select,textarea{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #e5e6eb;font-size:15px}
-textarea{min-height:110px;resize:vertical}
-button{padding:12px 16px;background:#0066ff;color:white;border:none;border-radius:10px;font-size:15px;font-weight:500;cursor:pointer;margin-right:8px}
-button:disabled{background:#94c2ff}
+label{display:block;margin-bottom:8px;font-size:14px;color:#4e5969;font-weight:500}
+select,textarea{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #e5e6eb;font-size:15px;transition:border-color 0.2s}
+select:focus,textarea:focus{outline:none;border-color:#0066ff;box-shadow:0 0 0 2px rgba(0,102,255,0.1)}
+textarea{min-height:110px;resize:vertical;line-height:1.5}
+button{padding:12px 16px;background:#0066ff;color:white;border:none;border-radius:10px;font-size:15px;font-weight:500;cursor:pointer;margin-right:8px;transition:background 0.2s}
+button:hover:not(:disabled){background:#0052cc}
+button:disabled{background:#94c2ff;cursor:not-allowed}
 .btn-small{padding:8px 12px;font-size:13px;background:#f0f2f5;color:#4e5969}
-.result{background:#f7f8fa;padding:18px;border-radius:12px;white-space:pre-wrap;line-height:1.7;margin-top:20px;font-size:15px}
-.tip{font-size:12px;color:#86909c;text-align:center;margin-top:10px}
+.btn-small:hover{background:#e5e6eb}
+.result{background:#f7f8fa;padding:18px;border-radius:12px;white-space:pre-wrap;line-height:1.7;margin-top:20px;font-size:15px;color:#1d2129;min-height:80px}
+.tip{font-size:12px;color:#86909c;text-align:center;margin-top:10px;line-height:1.4}
 .btn-group{display:flex;align-items:center;margin-top:8px}
 .download-btn{margin-top:12px;background:#00cc66}
-.download-btn:disabled{background:#99e6b3}
+.download-btn:hover:not(:disabled){background:#00b359}
+.download-btn:disabled{background:#99e6b3;cursor:not-allowed}
+.loading {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.error-text {
+  color: #f53f3f;
+}
 </style>
 </head>
 <body>
@@ -88,26 +109,45 @@ button:disabled{background:#94c2ff}
     </div>
     <button onclick="gen()" id="btn">一键生成</button>
     <button class="download-btn" id="downloadBtn" onclick="downloadDoc()" disabled style="display:none">下载文档</button>
-    <div class="tip">免费使用，每日有限次数</div>
+    <div class="tip">免费使用，每日有限次数 | 生成结果仅供参考，请根据实际情况调整</div>
   </div>
   <div id="result" style="display:none" class="result"></div>
 </div>
 
 <script>
 let currentDocId = "";
+let retryCount = 0; // 重试计数器，防止无限重试
+const MAX_RETRY = 2; // 最大重试次数
 
 // 填充参考样例
 async function fillExample(){
   const type = document.getElementById('type').value;
   const contentEl = document.getElementById('content');
+  const originalPlaceholder = contentEl.placeholder;
+  
   contentEl.placeholder = "加载样例中...";
   
   try{
-    const res = await fetch(`/api/examples/${encodeURIComponent(type)}`);
+    // 增加请求超时处理
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超时
+    
+    const res = await fetch(`/api/examples/${encodeURIComponent(type)}`, {
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if(!res.ok){
+      throw new Error(`请求失败：${res.status}`);
+    }
+    
     const data = await res.json();
     contentEl.value = data.example || "暂无参考样例";
   }catch(e){
-    contentEl.placeholder = "样例加载失败，请手动输入";
+    console.error("样例加载失败：", e);
+    contentEl.placeholder = originalPlaceholder;
+    alert(`样例加载失败：${e.message || '网络异常'}`);
   }
 }
 
@@ -115,40 +155,88 @@ async function fillExample(){
 async function gen(){
   const btn = document.getElementById('btn')
   const downloadBtn = document.getElementById('downloadBtn')
-  const res = document.getElementById('result')
+  const resEl = document.getElementById('result')
   const type = document.getElementById('type').value
   const style = document.getElementById('style').value
   const len = document.getElementById('len').value
   const content = document.getElementById('content').value.trim()
 
-  if(!content){alert('请填写内容');return}
-  btn.disabled = true
-  downloadBtn.disabled = true
-  downloadBtn.style.display = 'none'
-  btn.textContent = '生成中...'
-  res.style.display = 'block'
-  res.textContent = '正在生成，请稍候...'
+  // 重置重试计数器
+  retryCount = 0;
+  
+  if(!content){
+    alert('请填写背景信息，以便生成更贴合需求的文案');
+    return;
+  }
+  
+  // 按钮状态更新
+  btn.disabled = true;
+  downloadBtn.disabled = true;
+  downloadBtn.style.display = 'none';
+  btn.innerHTML = '<span class="loading"></span>生成中...';
+  resEl.style.display = 'block';
+  resEl.textContent = '正在生成，请稍候...';
+  resEl.classList.remove('error-text');
 
   try{
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+    
     const r = await fetch('/api/generate',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
+      signal: controller.signal,
       body:JSON.stringify({type,style,len,content})
-    })
-    const data = await r.json()
-    res.textContent = data.result || '生成失败'
+    });
     
+    clearTimeout(timeoutId);
+    
+    if(!r.ok){
+      throw new Error(`服务器错误：${r.status} ${r.statusText}`);
+    }
+    
+    const data = await r.json();
+    
+    if(data.result){
+      resEl.textContent = data.result;
+      // 标记错误文本
+      if(data.result.startsWith('❌')){
+        resEl.classList.add('error-text');
+      }
+    }else{
+      resEl.textContent = '生成失败：未返回有效内容';
+      resEl.classList.add('error-text');
+    }
+    
+    // 处理下载按钮
     if(data.doc_id && !data.result.startsWith('❌')){
       currentDocId = data.doc_id;
       downloadBtn.disabled = false;
       downloadBtn.style.display = 'inline-block';
     }
+    
   }catch(e){
-    res.textContent = '请求错误，正在重试...';
-    setTimeout(() => gen(), 1000);
+    console.error("生成请求失败：", e);
+    retryCount++;
+    
+    if(retryCount <= MAX_RETRY){
+      resEl.textContent = `请求错误（${retryCount}/${MAX_RETRY}），正在重试...`;
+      resEl.classList.add('error-text');
+      // 延迟重试
+      setTimeout(() => gen(), 1000 * retryCount); // 重试间隔递增
+    }else{
+      resEl.textContent = `生成失败：${e.message || '网络异常或服务器错误'}\n请稍后重试`;
+      resEl.classList.add('error-text');
+      // 重置按钮状态
+      btn.disabled = false;
+      btn.innerHTML = '一键生成';
+    }
   }finally{
-    btn.disabled = false
-    btn.textContent = '一键生成'
+    // 只有当重试次数用尽时才恢复按钮（避免重试时按钮被重置）
+    if(retryCount >= MAX_RETRY){
+      btn.disabled = false;
+      btn.innerHTML = '一键生成';
+    }
   }
 }
 
@@ -158,8 +246,32 @@ function downloadDoc(){
     alert('暂无可下载的文档');
     return;
   }
-  window.open(`/api/download/${currentDocId}`, '_blank');
+  
+  // 增加下载前的提示
+  const link = document.createElement('a');
+  link.href = `/api/download/${currentDocId}`;
+  link.target = '_blank';
+  
+  // 监听下载错误
+  link.addEventListener('error', (e) => {
+    alert('下载失败，请检查网络或稍后重试');
+    console.error("下载失败：", e);
+  });
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
+
+// 页面加载完成后的初始化
+document.addEventListener('DOMContentLoaded', () => {
+  // 监听回车键触发生成
+  document.getElementById('content').addEventListener('keydown', (e) => {
+    if(e.key === 'Enter' && e.ctrlKey){ // Ctrl+Enter 快速生成
+      gen();
+    }
+  });
+});
 </script>
 </body>
 </html>
